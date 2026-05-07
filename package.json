@@ -1,16 +1,29 @@
 {
-  "name": "wx-inline-player",
+  "name": "@wegdevio/wx-inline-player",
   "version": "1.3.6",
-  "description": "",
-  "main": "index.js",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/wx-inline-player.js",
+      "require": "./dist/wx-inline-player.umd.cjs"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
   "repository": {
     "type": "git",
-    "url": "git@code.aliyun.com:2018-shop/wx-inline-player.git"
+    "url": "git+https://github.com/wegdevio/WXInlinePlayer.git"
   },
   "author": "",
   "license": "ISC",
   "scripts": {
-    "serve": "node node_modules/static-server/bin/static-server.js example"
+    "serve": "node node_modules/static-server/bin/static-server.js example",
+    "build": "vite build"
   },
   "dependencies": {
     "buffer": "^5.2.1",
@@ -21,21 +34,8 @@
     "promise-polyfill": "^8.1.3"
   },
   "devDependencies": {
-    "@babel/core": "^7.12.3",
-    "@babel/plugin-proposal-class-properties": "^7.10.4",
-    "@babel/plugin-transform-arrow-functions": "^7.10.4",
-    "@babel/plugin-transform-block-scoping": "^7.10.5",
-    "@babel/plugin-transform-classes": "^7.12.1",
-    "@babel/plugin-transform-destructuring": "^7.10.4",
-    "@babel/plugin-transform-object-assign": "^7.12.1",
-    "@babel/plugin-transform-parameters": "^7.10.5",
-    "@babel/plugin-transform-template-literals": "^7.10.5",
-    "@babel/polyfill": "^7.10.4",
-    "@babel/preset-env": "^7.12.1",
-    "babel-plugin-transform-es2015-destructuring": "^6.23.0",
-    "babel-plugin-transform-es2015-parameters": "^6.24.1",
-    "babel-plugin-transform-runtime": "^6.23.0",
-    "static-server": "^2.2.1",
-    "uglify-js": "^3.10.1"
+    "typescript": "^6.0.3",
+    "vite": "latest",
+    "vite-plugin-dts": "^5.0.0"
   }
 }

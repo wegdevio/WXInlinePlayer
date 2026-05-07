@@ -54,6 +54,11 @@ export default {
   isWeChat() {
     return /MicroMessenger/i.test(window.navigator.userAgent);
   },
+  /**
+   * @param {Function} func
+   * @param {string[]} [methods]
+   * @returns {new (data?: any) => any}
+   */
   workerify(func, methods = []) {
     const funcStr = this.getFuncBody(func.toString());
     function __Worker__(data) {
