@@ -115,7 +115,7 @@
       <input type="number" name="volume" step="0.1" max="1.0" min="0.0" value="1.0" />
       <span>音量设置</span>
     </div>
-    <script src="./index.js"></script>
+    <script src="./wx-inline-player.iife.js?v=22"></script>
     <script>
       (() => {
         const $ = document.getElementById.bind(document);
@@ -203,6 +203,8 @@
                 }
               }
             });
+
+            window.player = player;
 
             player.on("play", () => {
               $status.innerHTML = "状态: 开播了";
