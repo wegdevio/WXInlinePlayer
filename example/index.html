@@ -178,8 +178,7 @@
           let isH265 = false
 
           WXInlinePlayer.init({
-            asmUrl: "./prod." + (isH265 ? "h265" : "all") + ".asm.combine.js",
-            wasmUrl: "./prod." + (isH265 ? "h265" : "all") + ".wasm.combine.js",
+            wasmUrl: "./prod.all.wasm.combine.js?v=2223",
           })
           
           return WXInlinePlayer.ready().then(()=>{
