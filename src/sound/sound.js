@@ -50,7 +50,7 @@ LICENSED WORK OR THE USE OR OTHER DEALINGS IN THE LICENSED WORK.
 import BrowserSound from "./browser";
 
 function Sound(opt) {
-  return new WeChatSound(opt);
+  return new BrowserSound(opt);
 }
 
 export default Sound;

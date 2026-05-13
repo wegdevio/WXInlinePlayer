@@ -74,7 +74,9 @@ class Codec {
 public:
   Codec() : _decoder(make_shared<Decoder>()),adtsHeader(make_shared<Buffer>()),
             sps(make_shared<Buffer>()), pps(make_shared<Buffer>()),
-            vps(make_shared<Buffer>()), audioBuffer(nullptr), videoBuffer(nullptr) {
+            vps(make_shared<Buffer>()), audioBuffer(nullptr), videoBuffer(nullptr),
+            aacDecoder(nullptr), aacInited(false),
+            aacSampleRate(0), aacChannels(0) {
 #ifdef USE_OPEN_H265
     storage = de265_new_decoder();
     de265_set_parameter_bool(storage, DE265_DECODER_PARAM_SUPPRESS_FAULTY_PICTURES, false);
@@ -116,21 +118,7 @@ public:
 
   uint32_t try2seek(uint8_t *bytes, uint32_t byteLen);
 
-  ~Codec() {
-#ifdef USE_OPEN_H265
-    de265_flush_data(storage);
-    de265_free_decoder(storage);
-    storage = nullptr;
-#elif defined(USE_OPEN_H264)
-    storage->Uninitialize();
-    WelsDestroyDecoder(storage);
-    storage = nullptr;
-#else
-    h264bsdShutdown(storage);
-    h264bsdFree(storage);
-    storage = nullptr;
-#endif
-  }
+  ~Codec();
 
   string bridgeName;
   uint8_t *audioBuffer;
@@ -140,6 +128,13 @@ public:
   shared_ptr<Buffer> pps;
   shared_ptr<Buffer> vps;
   int lengthSizeMinusOne;
+
+  // faad2 decoder handle (NeAACDecHandle). void* keeps the faad2 headers
+  // out of this header — codec_factor.cpp casts back to NeAACDecHandle.
+  void *aacDecoder;
+  bool aacInited;
+  uint32_t aacSampleRate;
+  uint8_t  aacChannels;
 private:
   shared_ptr<DecoderFactor> _factor;
   shared_ptr<Decoder> _decoder;

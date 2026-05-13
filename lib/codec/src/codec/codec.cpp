@@ -48,6 +48,7 @@ LICENSED WORK OR THE USE OR OTHER DEALINGS IN THE LICENSED WORK.
 *********************************************************/
 
 #include "codec.h"
+#include "neaacdec.h"
 
 void Codec::decode(uint8_t *bytes, uint32_t byteLen) {
   shared_ptr<Buffer> buffer = make_shared<Buffer>(bytes, byteLen);
@@ -57,4 +58,25 @@ void Codec::decode(uint8_t *bytes, uint32_t byteLen) {
 uint32_t Codec::try2seek(uint8_t *bytes, uint32_t byteLen) {
   shared_ptr<Buffer> buffer = make_shared<Buffer>(bytes, byteLen);
   return 0;
+}
+
+Codec::~Codec() {
+#ifdef USE_OPEN_H265
+  de265_flush_data(storage);
+  de265_free_decoder(storage);
+  storage = nullptr;
+#elif defined(USE_OPEN_H264)
+  storage->Uninitialize();
+  WelsDestroyDecoder(storage);
+  storage = nullptr;
+#else
+  h264bsdShutdown(storage);
+  h264bsdFree(storage);
+  storage = nullptr;
+#endif
+
+  if (aacDecoder != nullptr) {
+    NeAACDecClose(static_cast<NeAACDecHandle>(aacDecoder));
+    aacDecoder = nullptr;
+  }
 }

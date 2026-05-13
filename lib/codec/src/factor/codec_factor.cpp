@@ -49,6 +49,7 @@ LICENSED WORK OR THE USE OR OTHER DEALINGS IN THE LICENSED WORK.
 
 #include "codec_factor.h"
 #include "codec/codec.h"
+#include "neaacdec.h"
 #include <iostream>
 
 void CodecFactor::recvHeaderValue(HeaderValue &value) {
@@ -99,36 +100,54 @@ void CodecFactor::_handleDataTag(DataTagValue &tag) const {
 
 void CodecFactor::_handleAudioTag(AudioTagValue &tag, uint32_t timestamp) const {
   if (tag.AACPacketType == 0) {
-    shared_ptr<Buffer> audioSpecificConfig = tag.data;
-    int audioObjectType = ((*audioSpecificConfig)[0] & 0xf8) >> 3;
-    int samplingFrequencyIndex = (((*audioSpecificConfig)[0] & 0x7) << 1) | ((*audioSpecificConfig)[1] >> 7);
-    int channelConfig = ((*audioSpecificConfig)[1] >> 3) & 0x0f;
-    int frameLengthFlag = ((*audioSpecificConfig)[1] >> 2) & 0x01;
-    int dependsOnCoreCoder = ((*audioSpecificConfig)[1] >> 1) & 0x01;
-    int extensionFlag = (*audioSpecificConfig)[1] & 0x01;
+    // AudioSpecificConfig — open / re-open the faad2 decoder with it.
+    shared_ptr<Buffer> asc = tag.data;
+    if (_codec->aacDecoder == nullptr) {
+      _codec->aacDecoder = NeAACDecOpen();
+      NeAACDecConfigurationPtr cfg = NeAACDecGetCurrentConfiguration(
+              static_cast<NeAACDecHandle>(_codec->aacDecoder));
+      cfg->outputFormat = FAAD_FMT_FLOAT;   // interleaved float32, [-1, 1]
+      cfg->defObjectType = LC;
+      cfg->downMatrix = 0;
+      NeAACDecSetConfiguration(static_cast<NeAACDecHandle>(_codec->aacDecoder), cfg);
+    }
 
-    uint8_t adts[7] = {
-            0xff,
-            0xf0 | (0 << 3) | (0 << 1) | 1,
-            (uint8_t) (((audioObjectType - 1) << 6) | ((samplingFrequencyIndex & 0x0f) << 2) | (0 << 1) |
-                       ((channelConfig & 0x04) >> 2)),
-            (uint8_t) (((channelConfig & 0x03) << 6) | (0 << 5) | (0 << 4) | (0 << 3) | (0 << 2) |
-                       ((7 & 0x1800) >> 11)),
-            (uint8_t) ((7 & 0x7f8) >> 3),
-            (uint8_t) (((7 & 0x7) << 5) | 0x1f),
-            0xfc,
-    };
-    _codec->adtsHeader = make_shared<Buffer>(adts, 7);
+    unsigned long sampleRate = 0;
+    unsigned char channels = 0;
+    long initRes = NeAACDecInit2(
+            static_cast<NeAACDecHandle>(_codec->aacDecoder),
+            asc->get_buf_ptr(),
+            asc->get_length(),
+            &sampleRate,
+            &channels);
+    if (initRes < 0) {
+      _codec->aacInited = false;
+      return;
+    }
+    _codec->aacInited = true;
+    _codec->aacSampleRate = (uint32_t) sampleRate;
+    _codec->aacChannels = channels;
   } else if (tag.AACPacketType == 1) {
-    shared_ptr<Buffer> adtsHeader = make_shared<Buffer>();
-    adtsHeader = make_shared<Buffer>(*adtsHeader + *_codec->adtsHeader);
-    shared_ptr<Buffer> adtsBody = tag.data;
-    uint32_t adtsLen = adtsBody->get_length() + 7;
-    adtsHeader->write_uint8(adtsHeader->read_uint8(3) | ((adtsLen & 0x1800) >> 11), 3);
-    adtsHeader->write_uint8((adtsLen & 0x7f8) >> 3, 4);
-    adtsHeader->write_uint8((((adtsLen & 0x7) << 5) | 0x1f), 5);
-    adtsHeader->write_uint8(0xfc, 6);
-    adtsBody = make_shared<Buffer>(*adtsHeader + *adtsBody);
+    if (!_codec->aacInited || _codec->aacDecoder == nullptr) {
+      return;
+    }
+
+    shared_ptr<Buffer> aacFrame = tag.data;
+    NeAACDecFrameInfo info;
+    void *pcm = NeAACDecDecode(
+            static_cast<NeAACDecHandle>(_codec->aacDecoder),
+            &info,
+            aacFrame->get_buf_ptr(),
+            aacFrame->get_length());
+    if (info.error != 0 || pcm == nullptr || info.samples == 0) {
+      return;
+    }
+
+    uint32_t channels    = info.channels;
+    uint32_t sampleRate  = (uint32_t) info.samplerate;
+    uint32_t sampleCount = info.samples / channels;    // per-channel sample count
+    uint32_t byteLen     = (uint32_t) info.samples * sizeof(float);
+
 #ifdef __EMSCRIPTEN__
     EM_ASM({
       var isWorker = typeof importScripts == "function";
@@ -138,19 +157,22 @@ void CodecFactor::_handleAudioTag(AudioTagValue &tag, uint32_t timestamp) const 
           "size": $1,
         });
       }
-    }, _codec->bridgeName.c_str(), adtsBody->get_length());
+    }, _codec->bridgeName.c_str(), byteLen);
 
     if(_codec->audioBuffer != nullptr){
-      memcpy(_codec->audioBuffer, adtsBody->get_buf_ptr(), adtsBody->get_length());
+      memcpy(_codec->audioBuffer, pcm, byteLen);
       EM_ASM({
         var isWorker = typeof importScripts == "function";
         var bridge = (isWorker ? self : window)[UTF8ToString($0)];
         if(bridge && typeof bridge["onAudioData"] == "function"){
           bridge["onAudioData"]({
-            "timestamp": $1,
+            "timestamp":   $1,
+            "sampleRate":  $2,
+            "channels":    $3,
+            "sampleCount": $4,
           });
         }
-      }, _codec->bridgeName.c_str(), timestamp);
+      }, _codec->bridgeName.c_str(), timestamp, sampleRate, channels, sampleCount);
     }
 #endif
   }

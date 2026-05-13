@@ -73,7 +73,6 @@ class Processor extends EventEmitter {
     this.hasVideo = true;
     this.hasAudio = true;
     this.frames = [];
-    this.audios = [];
     this.currentTime = 0;
     this.bufferingIndex = -1;
     this.minBufferingTime = preloadTime;
@@ -194,7 +193,6 @@ class Processor extends EventEmitter {
     }
 
     this.frames = [];
-    this.audios = [];
     this.ticker = null;
     this.sound = null;
     this.codec = null;
@@ -400,11 +398,13 @@ class Processor extends EventEmitter {
         break;
       }
       case 'audio': {
-        const { timestamp, buffer } = msg.data;
+        const { timestamp, buffer, sampleRate, channels, sampleCount } = msg.data;
         if (!this.baseTime) {
           this.baseTime = timestamp;
         }
-        this.audios.push(Buffer.from(new Uint8Array(buffer)));
+        if (this.sound) {
+          this.sound.decode({ buffer, sampleRate, channels, sampleCount });
+        }
         break;
       }
       case 'decode': {
@@ -447,10 +447,7 @@ class Processor extends EventEmitter {
               const frame = this.frames.shift();
               this.emit('frame', frame);
             }
-            this.sound.decode(Buffer.concat(this.audios.splice(0, 32)));
           }
-          this.sound.decode(Buffer.concat(this.audios));
-          this.audios = [];
         }
         break;
       }

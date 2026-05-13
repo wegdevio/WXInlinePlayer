@@ -44,7 +44,7 @@
 #define _GNU_SOURCE
 #endif
 #include <sched.h>
-#elif !defined(_WIN32) && !defined(__CYGWIN__)
+#elif !defined(_WIN32) && !defined(__CYGWIN__) && !defined(__EMSCRIPTEN__)
 #include <sys/types.h>
 #include <sys/param.h>
 #include <unistd.h>

@@ -47,7 +47,6 @@ OTHERWISE, ARISING FROM, OUT OF OR IN ANY WAY CONNECTION WITH THE
 LICENSED WORK OR THE USE OR OTHER DEALINGS IN THE LICENSED WORK.
 *********************************************************/
 
-import { Buffer } from "buffer";
 import EventEmitter from "eventemitter3";
 const AudioContext = window.webkitAudioContext || window.AudioContext;
 
@@ -69,7 +68,35 @@ class BrowserSound extends EventEmitter {
     this.audioSrcNodes = [];
     this.playStartedAt = 0;
     this.totalTimeScheduled = 0;
-    this.data = Buffer.alloc(0);
+
+    this._gestureEvents = ["touchstart", "touchend", "mousedown", "keydown", "click"];
+    this._gestureAttached = false;
+    this._onGesture = () => {
+      if (this.context && this.context.state !== "running") {
+        this.context.resume();
+      }
+      this._detachGestureResume();
+    };
+  }
+
+  _attachGestureResume() {
+    if (this._gestureAttached || typeof document === "undefined") {
+      return;
+    }
+    this._gestureAttached = true;
+    this._gestureEvents.forEach((e) => {
+      document.addEventListener(e, this._onGesture, true);
+    });
+  }
+
+  _detachGestureResume() {
+    if (!this._gestureAttached || typeof document === "undefined") {
+      return;
+    }
+    this._gestureAttached = false;
+    this._gestureEvents.forEach((e) => {
+      document.removeEventListener(e, this._onGesture, true);
+    });
   }
 
   setBlockedCurrTime(currTime = 0) {
@@ -93,7 +120,14 @@ class BrowserSound extends EventEmitter {
     }
 
     this.state = "running";
-    this.resume();
+    const resumed = this.resume();
+    if (resumed && typeof resumed.then === "function") {
+      resumed.then(() => {
+        if (this.context && this.context.state !== "running") {
+          this._attachGestureResume();
+        }
+      });
+    }
     this.setBlockedCurrTime(offset);
 
     this.playStartedAt = 0;
@@ -179,37 +213,44 @@ class BrowserSound extends EventEmitter {
     return Promise.resolve();
   }
 
-  decode(data) {
-    if (data.length) {
-      data = Buffer.from(data);
-      this.data = Buffer.concat([this.data, data]);
-      if (this.context) {
-        return new Promise((resolve) => {
-          this.context.decodeAudioData(
-            this.data.buffer,
-            (buffer) => {
-              this._onDecodeSuccess(buffer);
-              resolve();
-            },
-            (error) => {
-              this._onDecodeError(error);
-              resolve();
-            },
-          );
-        });
+  // frame: { buffer: ArrayBuffer (interleaved Float32 PCM),
+  //          sampleRate, channels, sampleCount }
+  decode(frame) {
+    if (!frame || !this.context) {
+      return;
+    }
+    const { buffer, sampleRate, channels, sampleCount } = frame;
+    if (!sampleCount || !channels) {
+      return;
+    }
+
+    const audioBuffer = this.context.createBuffer(channels, sampleCount, sampleRate);
+    const interleaved = new Float32Array(buffer);
+
+    if (channels === 1) {
+      audioBuffer.copyToChannel
+        ? audioBuffer.copyToChannel(interleaved, 0)
+        : audioBuffer.getChannelData(0).set(interleaved);
+    } else {
+      for (let c = 0; c < channels; c++) {
+        const dst = audioBuffer.getChannelData(c);
+        for (let i = 0; i < sampleCount; i++) {
+          dst[i] = interleaved[i * channels + c];
+        }
       }
     }
-    return Promise.resolve();
+
+    this._onDecodeSuccess(audioBuffer);
   }
 
   destroy() {
     this.removeAllListeners();
+    this._detachGestureResume();
     if (this.context) {
       this.context.close();
       this.context = null;
     }
 
-    this.data = null;
     this.gainNode = null;
     this.audioSrcNodes = [];
     this.state = "destroy";
@@ -243,7 +284,6 @@ class BrowserSound extends EventEmitter {
     this.totalTimeScheduled += audioBuffer.duration;
     this.duration += audioBuffer.duration;
 
-    this.data = Buffer.alloc(0);
     this.emit("decode:success");
   }
 
