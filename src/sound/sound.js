@@ -47,12 +47,10 @@ OTHERWISE, ARISING FROM, OUT OF OR IN ANY WAY CONNECTION WITH THE
 LICENSED WORK OR THE USE OR OTHER DEALINGS IN THE LICENSED WORK.
 *********************************************************/
 
-import Util from '../util/util';
-import BrowserSound from './browser';
-import WeChatSound from './wechat';
+import BrowserSound from "./browser";
 
 function Sound(opt) {
-  return Util.isWeChat() ? new WeChatSound(opt) : new BrowserSound(opt);
+  return new WeChatSound(opt);
 }
 
 export default Sound;
