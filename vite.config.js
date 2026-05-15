@@ -7,7 +7,8 @@ export default defineConfig({
   build: {
     lib: {
       entry: resolve(import.meta.dirname, "src/index.js"),
-      name: "WXInlinePlayer",
+      name: "wxplayer",
+      formats: ["es", "umd", "iife"],
     },
   },
   plugins: [

@@ -112,7 +112,7 @@ class WXInlinePlayer extends EventEmitter {
      */
     this.state = STATE.created;
 
-    if (((hasVideo && !hasAudio) || Util.isWeChat()) && this.autoplay) {
+    if (this.autoplay) {
       this._initlize();
       this.processor.unblock(0);
     }
@@ -133,7 +133,6 @@ class WXInlinePlayer extends EventEmitter {
       window.URL.createObjectURL &&
       window.Blob &&
       window.Worker &&
-      !!new Audio().canPlayType('audio/aac;').replace(/^no$/, '') &&
       (window.AudioContext || window.webkitAudioContext) &&
       Drawer.isSupport()
     );
